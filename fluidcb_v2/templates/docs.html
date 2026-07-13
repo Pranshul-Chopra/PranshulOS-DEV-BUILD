@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Docs — FLUIDCB</title>
+  <link rel="stylesheet" href="/static/fonts/ibmflex.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:         #0c0c0c;
+      --surface:    #141414;
+      --surface2:   #1c1c1c;
+      --border:     #272727;
+      --border2:    #333;
+      --text:       #e8e6e1;
+      --text2:      #8a8880;
+      --text3:      #4a4845;
+      --amber:      #e8a84c;
+      --amber-dim:  #7a5820;
+      --amber-glow: rgba(232,168,76,0.08);
+      --amber-glow2:rgba(232,168,76,0.14);
+      --radius:     10px;
+      --mono:       'IBM Plex Mono', monospace;
+      --sans:       'IBM Plex Sans', sans-serif;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .logo { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; color: var(--amber); }
+    .header-sep { width: 1px; height: 14px; background: var(--border2); }
+    .header-title { font-size: 12px; color: var(--text2); font-family: var(--mono); letter-spacing: 0.04em; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .doc-title-input {
+      background: transparent; border: none; outline: none;
+      font-family: var(--sans); font-size: 14px; font-weight: 500;
+      color: var(--text); width: 280px; text-align: center;
+      border-bottom: 1px solid transparent; transition: border-color 0.15s;
+      padding: 2px 4px;
+    }
+    .doc-title-input:focus { border-bottom-color: var(--amber-dim); }
+    .doc-title-input::placeholder { color: var(--text3); }
+    .save-status { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.04em; min-width: 60px; text-align: right; }
+
+    /* ── Main layout ── */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Left: doc list panel ── */
+    .doc-list-panel {
+      width: 260px; flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      background: var(--surface);
+    }
+    .panel-top {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .panel-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; flex: 1; }
+    .new-doc-btn {
+      font-family: var(--mono); font-size: 11px; color: var(--amber);
+      background: var(--amber-glow); border: 1px solid var(--amber-dim);
+      padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .new-doc-btn:hover { background: var(--amber-glow2); }
+
+    /* search bar */
+    .search-wrap { padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .search-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 6px 10px; font-family: var(--mono);
+      font-size: 11px; color: var(--text2); outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--amber-dim); }
+    .search-input::placeholder { color: var(--text3); }
+
+    /* doc items */
+    .doc-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+    .doc-list::-webkit-scrollbar { width: 3px; }
+    .doc-list::-webkit-scrollbar-thumb { background: var(--border2); }
+
+    .doc-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+      position: relative;
+    }
+    .doc-item:hover { background: var(--surface2); }
+    .doc-item.active { background: var(--surface2); border-left-color: var(--amber); }
+    .doc-item-icon { font-size: 13px; flex-shrink: 0; opacity: 0.6; }
+    .doc-item-info { flex: 1; min-width: 0; }
+    .doc-item-title {
+      font-size: 13px; color: var(--text); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; font-weight: 500;
+    }
+    .doc-item.active .doc-item-title { color: var(--amber); }
+    .doc-item-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-top: 2px; }
+    .doc-delete-btn {
+      opacity: 0; font-size: 12px; color: var(--text3); background: none;
+      border: none; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+      transition: opacity 0.12s, color 0.12s; flex-shrink: 0;
+    }
+    .doc-item:hover .doc-delete-btn { opacity: 1; }
+    .doc-delete-btn:hover { color: #e06c6c; }
+
+    .empty-list {
+      padding: 32px 16px; text-align: center;
+      font-family: var(--mono); font-size: 11px; color: var(--text3);
+      line-height: 1.8; letter-spacing: 0.04em;
+    }
+
+    /* ── Right: editor panel ── */
+    .editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .editor-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .tb-btn {
+      font-family: var(--mono); font-size: 11px; color: var(--text3);
+      background: transparent; border: 1px solid transparent;
+      padding: 3px 8px; border-radius: 5px; cursor: pointer;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .tb-btn:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+    .tb-sep { width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
+    .tb-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .word-count { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.04em; }
+
+    /* editor area */
+    .editor-wrap { flex: 1; overflow-y: auto; padding: 40px 60px; }
+    .editor-wrap::-webkit-scrollbar { width: 4px; }
+    .editor-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    #editor {
+      width: 100%; min-height: 100%;
+      background: transparent; border: none; outline: none; resize: none;
+      font-family: var(--sans); font-size: 15px; line-height: 1.85;
+      color: var(--text); caret-color: var(--amber);
+    }
+    #editor::placeholder { color: var(--text3); }
+
+    /* empty state (no doc selected) */
+    .no-doc-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; color: var(--text3);
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+      text-align: center;
+    }
+    .no-doc-state .icon { font-size: 36px; opacity: 0.2; }
+    .no-doc-state .hint { font-size: 11px; line-height: 1.8; }
+    .no-doc-create-btn {
+      margin-top: 8px; font-family: var(--mono); font-size: 11px;
+      color: var(--amber); background: var(--amber-glow);
+      border: 1px solid var(--amber-dim); padding: 7px 18px;
+      border-radius: 7px; cursor: pointer; transition: background 0.15s;
+    }
+    .no-doc-create-btn:hover { background: var(--amber-glow2); }
+
+    /* delete confirm modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.15s;
+    }
+    .modal-overlay.visible { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 24px 28px; width: 340px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .modal-title { font-size: 15px; font-weight: 500; }
+    .modal-body { font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-cancel {
+      font-family: var(--mono); font-size: 11px; color: var(--text2);
+      background: var(--surface2); border: 1px solid var(--border2);
+      padding: 6px 16px; border-radius: 7px; cursor: pointer;
+    }
+    .modal-confirm {
+      font-family: var(--mono); font-size: 11px; color: #fff;
+      background: #8b2020; border: 1px solid #6b1a1a;
+      padding: 6px 16px; border-radius: 7px; cursor: pointer;
+    }
+    .modal-confirm:hover { background: #a02626; }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <span class="logo">FLUIDCB</span>
+    <div class="header-sep"></div>
+    <span class="header-title">docs</span>
+    <div style="flex:1; display:flex; justify-content:center;">
+      <input type="text" id="docTitleInput" class="doc-title-input" placeholder="select a document" disabled/>
+    </div>
+    <div class="header-right">
+      <span class="save-status" id="saveStatus"></span>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- Left: doc list -->
+    <div class="doc-list-panel">
+      <div class="panel-top">
+        <span class="panel-label">notepads</span>
+        <button class="new-doc-btn" onclick="createDoc()">+ new</button>
+      </div>
+      <div class="search-wrap">
+        <input type="text" class="search-input" id="searchInput" placeholder="search docs…" oninput="filterDocs(this.value)"/>
+      </div>
+      <div class="doc-list" id="docList">
+        <div class="empty-list" id="emptyList">no documents yet<br/>click + new to start</div>
+      </div>
+    </div>
+
+    <!-- Right: editor -->
+    <div class="editor-panel" id="editorPanel">
+      <div class="no-doc-state" id="noDocState">
+        <div class="icon">📄</div>
+        <div class="hint">select a document from the left<br/>or create a new one</div>
+        <button class="no-doc-create-btn" onclick="createDoc()">+ new notepad</button>
+      </div>
+
+      <div id="editorUI" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="editor-toolbar">
+          <button class="tb-btn" onclick="fmt('bold')"><b>B</b></button>
+          <button class="tb-btn" onclick="fmt('italic')"><i>I</i></button>
+          <button class="tb-btn" onclick="fmt('underline')"><u>U</u></button>
+          <div class="tb-sep"></div>
+          <button class="tb-btn" onclick="insertHeading()">H</button>
+          <button class="tb-btn" onclick="insertBullet()">• list</button>
+          <button class="tb-btn" onclick="insertDivider()">— divider</button>
+          <div class="tb-right">
+            <span class="word-count" id="wordCount">0 words</span>
+            <button class="tb-btn" onclick="flushSave()" style="color:var(--amber);border-color:var(--amber-dim);">save</button>
+          </div>
+        </div>
+        <div class="editor-wrap">
+          <textarea id="editor" placeholder="start writing…"></textarea>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">Delete document?</div>
+    <div class="modal-body" id="deleteModalBody">This action cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeDeleteModal()">cancel</button>
+      <button class="modal-confirm" onclick="confirmDelete()">delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let docs        = [];
+  let activeDocId = null;
+  let pendingDeleteId = null;
+  let searchQuery = '';
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadDocs();
+
+  // ── API helpers ────────────────────────────────────────────────────────────
+  async function api(method, path, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(path, opts);
+    if (!res.ok) throw new Error(await res.text());
+    if (res.status === 204) return null;
+    return res.json();
+  }
+
+  // ── Load doc list ──────────────────────────────────────────────────────────
+  async function loadDocs() {
+    try {
+      docs = await api('GET', '/api/docs');
+      renderDocList();
+    } catch (e) {
+      console.error('Failed to load docs:', e);
+    }
+  }
+
+  function renderDocList() {
+    const list = document.getElementById('docList');
+    const empty = document.getElementById('emptyList');
+    const filtered = docs.filter(d =>
+      !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Remove existing doc items (keep emptyList)
+    list.querySelectorAll('.doc-item').forEach(el => el.remove());
+
+    if (filtered.length === 0) {
+      empty.style.display = 'block';
+      empty.textContent = searchQuery ? 'no results' : 'no documents yet\nclick + new to start';
+      return;
+    }
+    empty.style.display = 'none';
+
+    filtered.forEach(doc => {
+      const item = document.createElement('div');
+      item.className = 'doc-item' + (doc.id === activeDocId ? ' active' : '');
+      item.dataset.id = doc.id;
+
+      const updated = formatDate(doc.updated_at);
+      item.innerHTML = `
+        <span class="doc-item-icon">📄</span>
+        <div class="doc-item-info">
+          <div class="doc-item-title">${esc(doc.title)}</div>
+          <div class="doc-item-meta">${updated}</div>
+        </div>
+        <button class="doc-delete-btn" title="delete" onclick="openDeleteModal(${doc.id}, '${esc(doc.title)}', event)">✕</button>
+      `;
+      item.addEventListener('click', () => openDoc(doc.id));
+      list.appendChild(item);
+    });
+  }
+
+  function filterDocs(q) {
+    searchQuery = q;
+    renderDocList();
+  }
+
+  // ── Open doc ───────────────────────────────────────────────────────────────
+  async function openDoc(id) {
+    if (activeDocId === id) return;
+
+    // Warn if unsaved changes exist
+    if (activeDocId !== null && document.getElementById('saveStatus').textContent === 'unsaved') {
+      if (!confirm('You have unsaved changes. Switch anyway?')) return;
+    }
+
+    try {
+      const doc = await api('GET', `/api/docs/${id}`);
+      activeDocId = id;
+
+      document.getElementById('noDocState').style.display   = 'none';
+      document.getElementById('editorUI').style.display     = 'flex';
+      document.getElementById('docTitleInput').value        = doc.title;
+      document.getElementById('docTitleInput').disabled     = false;
+      document.getElementById('editor').value               = doc.content;
+      updateWordCount();
+      setStatus('');
+      renderDocList();
+      document.getElementById('editor').focus();
+    } catch (e) {
+      console.error('Failed to open doc:', e);
+    }
+  }
+
+  // ── Create doc ─────────────────────────────────────────────────────────────
+  async function createDoc() {
+    try {
+      const doc = await api('POST', '/api/docs', { title: 'Untitled' });
+      docs.unshift({ id: doc.id, title: doc.title, created_at: doc.created_at, updated_at: doc.updated_at });
+      renderDocList();
+      await openDoc(doc.id);
+      // Select title so user can rename immediately
+      const titleInput = document.getElementById('docTitleInput');
+      titleInput.select();
+    } catch (e) {
+      console.error('Failed to create doc:', e);
+    }
+  }
+
+  // ── Save ───────────────────────────────────────────────────────────────────
+  async function flushSave() {
+    if (!activeDocId) return;
+    clearTimeout(_saveTimer);
+    const title   = document.getElementById('docTitleInput').value.trim() || 'Untitled';
+    const content = document.getElementById('editor').value;
+    setStatus('saving…');
+    try {
+      const updated = await api('PATCH', `/api/docs/${activeDocId}`, { title, content });
+      const idx = docs.findIndex(d => d.id === activeDocId);
+      if (idx !== -1) { docs[idx].title = updated.title; docs[idx].updated_at = updated.updated_at; }
+      renderDocList();
+      setStatus('saved');
+      setTimeout(() => setStatus(''), 2000);
+    } catch (e) {
+      setStatus('save failed');
+    }
+  }
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  function openDeleteModal(id, title, e) {
+    e.stopPropagation();
+    pendingDeleteId = id;
+    document.getElementById('deleteModalBody').textContent = `"${title}" will be permanently deleted.`;
+    document.getElementById('deleteModal').classList.add('visible');
+  }
+  function closeDeleteModal() {
+    pendingDeleteId = null;
+    document.getElementById('deleteModal').classList.remove('visible');
+  }
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    try {
+      await api('DELETE', `/api/docs/${pendingDeleteId}`);
+      if (activeDocId === pendingDeleteId) {
+        activeDocId = null;
+        document.getElementById('noDocState').style.display = 'flex';
+        document.getElementById('editorUI').style.display   = 'none';
+        document.getElementById('docTitleInput').value      = '';
+        document.getElementById('docTitleInput').disabled   = true;
+        setStatus('');
+      }
+      docs = docs.filter(d => d.id !== pendingDeleteId);
+      renderDocList();
+    } catch (e) { console.error('Delete failed:', e); }
+    closeDeleteModal();
+  }
+
+  // ── Toolbar helpers ────────────────────────────────────────────────────────
+  function fmt(cmd) {
+    const ta = document.getElementById('editor');
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.substring(s, e);
+    const markers = { bold: '**', italic: '_', underline: '__' };
+    const m = markers[cmd];
+    const replacement = `${m}${sel || cmd}${m}`;
+    ta.setRangeText(replacement, s, e, 'end');
+    ta.focus(); setStatus('unsaved');
+  }
+
+  function insertHeading() {
+    const ta = document.getElementById('editor');
+    const s = ta.selectionStart;
+    const before = ta.value.lastIndexOf('\n', s - 1) + 1;
+    ta.setRangeText('## ', before, before, 'end');
+    ta.focus(); setStatus('unsaved');
+  }
+
+  function insertBullet() {
+    const ta = document.getElementById('editor');
+    const s = ta.selectionStart;
+    const before = ta.value.lastIndexOf('\n', s - 1) + 1;
+    ta.setRangeText('- ', before, before, 'end');
+    ta.focus(); setStatus('unsaved');
+  }
+
+  function insertDivider() {
+    const ta = document.getElementById('editor');
+    const s = ta.selectionStart;
+    ta.setRangeText('\n\n---\n\n', s, s, 'end');
+    ta.focus(); setStatus('unsaved');
+  }
+
+  // ── Word count ─────────────────────────────────────────────────────────────
+  function updateWordCount() {
+    const text = document.getElementById('editor').value.trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    document.getElementById('wordCount').textContent = `${words} word${words !== 1 ? 's' : ''}`;
+  }
+
+  // ── Autosave ───────────────────────────────────────────────────────────────
+  let _saveTimer = null;
+  function _scheduleAutosave() {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(flushSave, 1500);
+  }
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  document.getElementById('editor').addEventListener('input', () => {
+    updateWordCount();
+    setStatus('unsaved');
+    _scheduleAutosave();
+  });
+
+  document.getElementById('docTitleInput').addEventListener('input', () => {
+    setStatus('unsaved');
+    _scheduleAutosave();
+  });
+
+  document.getElementById('docTitleInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('editor').focus(); }
+  });
+
+  document.getElementById('editor').addEventListener('keydown', e => {
+    // Tab inserts 2 spaces
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const ta = e.target;
+      const s = ta.selectionStart;
+      ta.setRangeText('  ', s, s, 'end');
+      setStatus('unsaved');
+    }
+    // Ctrl+S = save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      flushSave();
+    }
+  });
+
+  document.getElementById('deleteModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDeleteModal();
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function setStatus(msg) {
+    document.getElementById('saveStatus').textContent = msg;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso.replace(' ', 'T') + 'Z');
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60)  return 'just now';
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
+
+  function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+</script>
+</body>
+</html>

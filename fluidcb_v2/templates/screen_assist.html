@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Screen Assist — FLUIDCB</title>
+  <link rel="stylesheet" href="/static/fonts/ibmflex.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:         #0c0c0c;
+      --surface:    #141414;
+      --surface2:   #1c1c1c;
+      --border:     #272727;
+      --border2:    #333;
+      --text:       #e8e6e1;
+      --text2:      #8a8880;
+      --text3:      #4a4845;
+      --amber:      #e8a84c;
+      --amber-dim:  #7a5820;
+      --amber-glow: rgba(232,168,76,0.08);
+      --radius:     12px;
+      --mono:       'IBM Plex Mono', monospace;
+      --sans:       'IBM Plex Sans', sans-serif;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+
+    /* header */
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .logo { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; color: var(--amber); }
+    .header-sep { width: 1px; height: 16px; background: var(--border2); }
+    .header-title { font-size: 13px; color: var(--text2); font-family: var(--mono); letter-spacing: 0.04em; }
+    .header-hint { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.04em; }
+
+    /* status bar */
+    .status-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+    .status-dot.ready { background: #4cbb7a; box-shadow: 0 0 0 3px rgba(76,187,122,0.15); }
+    .status-dot.busy  { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .status-text { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.04em; }
+
+    /* main layout: left = image panel, right = analysis panel */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── image panel ── */
+    .image-panel {
+      width: 55%; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .panel-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+    .panel-actions { margin-left: auto; display: flex; gap: 8px; }
+    .action-btn {
+      font-family: var(--mono); font-size: 10px; color: var(--text3);
+      background: var(--surface2); border: 1px solid var(--border2);
+      padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .action-btn:hover { color: var(--amber); border-color: var(--amber-dim); }
+    .action-btn.primary { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-glow); }
+    .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* canvas wrapper */
+    .canvas-wrap {
+      flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center;
+      padding: 16px; position: relative;
+    }
+    .canvas-wrap canvas { max-width: 100%; max-height: 100%; cursor: crosshair; display: block; }
+    .canvas-wrap .placeholder {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      color: var(--text3); font-family: var(--mono); font-size: 11px;
+      letter-spacing: 0.04em; text-align: center;
+    }
+    .placeholder .icon { font-size: 32px; opacity: 0.4; }
+
+    /* crop overlay */
+    #cropOverlay {
+      position: absolute; border: 1px solid var(--amber);
+      background: rgba(232,168,76,0.08); pointer-events: none;
+      display: none;
+    }
+
+    /* ── analysis panel ── */
+    .analysis-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .responses {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .responses::-webkit-scrollbar { width: 3px; }
+    .responses::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    .msg { display: flex; flex-direction: column; gap: 4px; animation: fadein 0.15s ease; }
+    @keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+    .msg-label { font-family: var(--mono); font-size: 9px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+    .msg-label.ai { color: var(--amber); }
+
+    .msg-body {
+      padding: 10px 14px; border-radius: var(--radius);
+      font-size: 13px; line-height: 1.75; white-space: pre-wrap; word-break: break-word;
+    }
+    .msg-body.user { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); }
+    .msg-body.ai   { background: var(--surface);  border: 1px solid var(--border);  color: var(--text); }
+
+    .msg-body pre {
+      background: #0a0a0a; border: 1px solid var(--border2);
+      border-left: 2px solid var(--amber-dim);
+      border-radius: 8px; padding: 12px 14px; margin: 8px 0;
+      overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.6;
+    }
+    .msg-body code {
+      font-family: var(--mono); font-size: 12px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      padding: 1px 5px; border-radius: 4px; color: var(--amber);
+    }
+    .msg-body pre code { background: none; border: none; padding: 0; color: inherit; }
+
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; color: var(--text3); font-family: var(--mono); font-size: 11px;
+      letter-spacing: 0.04em; gap: 8px; padding: 24px;
+    }
+    .empty-state .icon { font-size: 28px; opacity: 0.3; }
+
+    /* ── input area ── */
+    .input-area {
+      padding: 12px 16px 14px; border-top: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .input-row {
+      display: flex; gap: 8px; align-items: flex-end;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 8px 10px;
+      transition: border-color 0.15s;
+    }
+    .input-row:focus-within { border-color: var(--amber-dim); }
+    textarea {
+      flex: 1; background: transparent; border: none; outline: none; resize: none;
+      font-family: var(--sans); font-size: 13px; color: var(--text);
+      line-height: 1.6; max-height: 100px; overflow-y: auto;
+    }
+    textarea::placeholder { color: var(--text3); }
+    .send-btn {
+      width: 30px; height: 30px; background: var(--amber); border: none;
+      border-radius: 8px; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0; transition: opacity 0.15s;
+    }
+    .send-btn:hover { opacity: 0.85; }
+    .send-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+    .send-btn svg { width: 13px; height: 13px; fill: #0c0c0c; }
+    .input-meta { display: flex; align-items: center; margin-top: 6px; padding: 0 2px; }
+    .hint { font-family: var(--mono); font-size: 9px; color: var(--text3); letter-spacing: 0.04em; }
+    .clear-btn {
+      margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--text3);
+      background: none; border: none; cursor: pointer; letter-spacing: 0.04em; transition: color 0.15s;
+    }
+    .clear-btn:hover { color: var(--text2); }
+
+    /* crop controls bar */
+    #cropBar {
+      display: none; padding: 8px 16px; border-top: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+      align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    #cropBar.visible { display: flex; }
+    #cropBar .crop-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.06em; }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <span class="logo">FLUIDCB</span>
+    <div class="header-sep"></div>
+    <span class="header-title">screen assist</span>
+    <span class="header-hint">screenshot → ask → understand</span>
+  </header>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">loading screenshot…</span>
+  </div>
+
+  <div class="main">
+
+    <!-- LEFT: image panel -->
+    <div class="image-panel">
+      <div class="panel-header">
+        <span class="panel-label">screenshot</span>
+        <div class="panel-actions">
+          <button class="action-btn" id="clearImgBtn" onclick="clearImage()" disabled>clear image</button>
+          <button class="action-btn" id="retakeBtn" onclick="retakeScreenshot()" disabled>retake</button>
+          <button class="action-btn" id="cropBtn" onclick="toggleCrop()" disabled>crop</button>
+          <button class="action-btn primary" id="analyzeBtn" onclick="analyzeScreen()" disabled>analyse →</button>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="placeholder" id="placeholder">
+          <div class="icon">🖥</div>
+          <div>No screenshot yet</div>
+          <div style="color:var(--text3);font-size:9px;margin-top:4px">Triggered automatically via hotkey</div>
+        </div>
+        <canvas id="screenshotCanvas" style="display:none"></canvas>
+        <div id="cropOverlay"></div>
+      </div>
+
+      <div id="cropBar">
+        <span class="crop-label">drag to select region</span>
+        <div class="panel-actions">
+          <button class="action-btn" onclick="cancelCrop()">cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: analysis panel -->
+    <div class="analysis-panel">
+      <div class="panel-header">
+        <span class="panel-label">analysis</span>
+        <button class="action-btn" style="margin-left:auto" onclick="clearSession()">clear</button>
+      </div>
+
+      <div class="responses" id="responses">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">💬</div>
+          <div>Take a screenshot, then ask a question</div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-row">
+          <textarea id="questionInput" placeholder="ask about the screenshot…" rows="1" disabled></textarea>
+          <button class="send-btn" id="sendBtn" onclick="send()" disabled>
+            <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <div class="input-meta">
+          <span class="hint">enter to send · /search [query] to search web · ctrl+alt+v to retake</span>
+          <button class="clear-btn" onclick="clearSession()">clear session</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let originalImageB64 = null;   // full screenshot base64
+  let croppedImageB64  = null;   // cropped region base64 (or null = use original)
+  let conversationHistory = [];  // [{role, content}] for follow-up context
+  let imageSummary = null;       // model's first-turn description — injected on follow-ups
+  let isBusy = false;
+  let cropMode = false;
+
+  // Crop state
+  let cropStart = null;
+  let cropRect  = null;
+
+  const canvas      = document.getElementById('screenshotCanvas');
+  const ctx         = canvas.getContext('2d');
+  const cropOverlay = document.getElementById('cropOverlay');
+  const canvasWrap  = document.getElementById('canvasWrap');
+
+  // ── pywebview bridge — called from shell.py after screenshot ──────────────
+  // shell.py calls: window.loadScreenshot(base64String)
+  window.loadScreenshot = function(b64) {
+    originalImageB64 = b64;
+    croppedImageB64  = null;
+    conversationHistory = [];
+    imageSummary = null;
+
+    const img = new Image();
+    img.onload = () => {
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+      document.getElementById('placeholder').style.display = 'none';
+      canvas.style.display = 'block';
+      document.getElementById('clearImgBtn').disabled  = false;
+      document.getElementById('retakeBtn').disabled  = false;
+      document.getElementById('cropBtn').disabled    = false;
+      document.getElementById('analyzeBtn').disabled = false;
+      document.getElementById('questionInput').disabled = false;
+      document.getElementById('sendBtn').disabled    = false;
+      setStatus('ready', 'screenshot loaded · ask a question or click analyse');
+    };
+    img.src = 'data:image/png;base64,' + b64;
+  };
+
+  // ── Screenshot request ─────────────────────────────────────────────────────
+  // Calls back to shell.py to take a new screenshot
+  function clearImage() {
+    originalImageB64 = null;
+    croppedImageB64  = null;
+    conversationHistory = [];
+    imageSummary = null;
+
+    // Reset canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.style.display = 'none';
+    document.getElementById('canvasWrap').insertAdjacentHTML('afterbegin',
+      '<div class="placeholder" id="placeholder"><div class="icon">🖥</div><div>No screenshot yet</div><div style="color:var(--text3);font-size:9px;margin-top:4px">Triggered automatically via hotkey</div></div>'
+    );
+
+    // Disable buttons
+    document.getElementById('clearImgBtn').disabled  = true;
+    document.getElementById('retakeBtn').disabled    = true;
+    document.getElementById('cropBtn').disabled      = true;
+    document.getElementById('analyzeBtn').disabled   = true;
+    document.getElementById('questionInput').disabled = true;
+    document.getElementById('sendBtn').disabled      = true;
+
+    // Clear analysis panel too
+    document.getElementById('responses').innerHTML =
+      '<div class="empty-state" id="emptyState"><div class="icon">💬</div><div>Take a screenshot, then ask a question</div></div>';
+
+    if (cropMode) cancelCrop();
+    setStatus(null, 'waiting for screenshot');
+  }
+
+  function retakeScreenshot() {
+    if (window.pywebview) {
+      window.pywebview.api.take_screenshot_for_assist();
+    }
+    setStatus(null, 'taking screenshot…');
+  }
+
+  // ── Crop ───────────────────────────────────────────────────────────────────
+  // Crop phase: 'idle' | 'placing' (start set, waiting for second click)
+  let cropPhase = 'idle';
+
+  function toggleCrop() {
+    if (cropMode) { cancelCrop(); return; }
+    cropMode  = true;
+    cropPhase = 'idle';
+    cropStart = null;
+    cropRect  = null;
+    document.getElementById('cropBar').classList.add('visible');
+    document.getElementById('cropBar').querySelector('.crop-label').textContent = 'click to set start point';
+    document.getElementById('cropBtn').textContent = 'cancel crop';
+    canvas.style.cursor = 'crosshair';
+
+    canvas.addEventListener('click',     onCropClick);
+    canvas.addEventListener('mousemove', onCropMove);
+  }
+
+  function cancelCrop() {
+    cropMode  = false;
+    cropPhase = 'idle';
+    cropStart = null;
+    cropRect  = null;
+    cropOverlay.style.display = 'none';
+    document.getElementById('cropBar').classList.remove('visible');
+    document.getElementById('cropBtn').textContent = 'crop';
+    canvas.style.cursor = 'default';
+    canvas.removeEventListener('click',     onCropClick);
+    canvas.removeEventListener('mousemove', onCropMove);
+  }
+
+  function getCanvasPos(e) {
+    const rect   = canvas.getBoundingClientRect();
+    const scaleX = canvas.width  / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x:  (e.clientX - rect.left) * scaleX,   // canvas pixel space
+      y:  (e.clientY - rect.top)  * scaleY,
+      px: e.clientX - rect.left,               // rendered pixel space
+      py: e.clientY - rect.top,
+    };
+  }
+
+  function onCropClick(e) {
+    const pos = getCanvasPos(e);
+
+    if (cropPhase === 'idle') {
+      // First click — set start point
+      cropStart = pos;
+      cropPhase = 'placing';
+      document.getElementById('cropBar').querySelector('.crop-label').textContent = 'click to finalize crop';
+    } else {
+      // Second click — finalize
+      cropRect = {
+        x: Math.min(cropStart.x, pos.x),
+        y: Math.min(cropStart.y, pos.y),
+        w: Math.abs(pos.x - cropStart.x),
+        h: Math.abs(pos.y - cropStart.y),
+      };
+      // Remove live listeners before applyCrop (which also calls cancelCrop)
+      canvas.removeEventListener('click',     onCropClick);
+      canvas.removeEventListener('mousemove', onCropMove);
+      applyCrop();
+    }
+  }
+
+  function onCropMove(e) {
+    if (cropPhase !== 'placing' || !cropStart) return;
+    const pos = getCanvasPos(e);
+
+    const left   = Math.min(cropStart.px, pos.px);
+    const top    = Math.min(cropStart.py, pos.py);
+    const width  = Math.abs(pos.px - cropStart.px);
+    const height = Math.abs(pos.py - cropStart.py);
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapRect   = canvasWrap.getBoundingClientRect();
+    const canvasOffsetX = canvasRect.left - wrapRect.left + canvasWrap.scrollLeft;
+    const canvasOffsetY = canvasRect.top  - wrapRect.top  + canvasWrap.scrollTop;
+
+    cropOverlay.style.display = 'block';
+    cropOverlay.style.left   = (canvasOffsetX + left)  + 'px';
+    cropOverlay.style.top    = (canvasOffsetY + top)   + 'px';
+    cropOverlay.style.width  = width  + 'px';
+    cropOverlay.style.height = height + 'px';
+  }
+
+  function applyCrop() {
+    if (!cropRect || cropRect.w < 10 || cropRect.h < 10) { cancelCrop(); return; }
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width  = cropRect.w;
+    offscreen.height = cropRect.h;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.drawImage(canvas, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, cropRect.w, cropRect.h);
+    croppedImageB64 = offscreen.toDataURL('image/png').split(',')[1];
+
+    // Redraw canvas with cropped image
+    const img = new Image();
+    img.onload = () => {
+      canvas.width  = offscreen.width;
+      canvas.height = offscreen.height;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = offscreen.toDataURL('image/png');
+    cancelCrop();
+    setStatus('ready', 'region cropped · ready to analyse');
+  }
+
+  // ── Analysis ───────────────────────────────────────────────────────────────
+  function activeImage() {
+    return croppedImageB64 || originalImageB64;
+  }
+
+  async function analyzeScreen() {
+    if (!activeImage() || isBusy) return;
+    await askQuestion("Explain what's on screen. Don't repeat the text — tell me what it actually means, why it matters, and give me a real example or analogy that makes it click.");
+  }
+
+  async function send() {
+    const input = document.getElementById('questionInput');
+    const text  = input.value.trim();
+    if (!text || !activeImage() || isBusy) return;
+    input.value = '';
+    input.style.height = 'auto';
+    await askQuestion(text);
+  }
+
+  async function askQuestion(question) {
+    isBusy = true;
+    const isSearchCmd = question.trim().toLowerCase().startsWith('/search ');
+    setStatus('busy', isSearchCmd ? 'searching the web…' : 'analysing…');
+    document.getElementById('sendBtn').disabled    = true;
+    document.getElementById('analyzeBtn').disabled = true;
+
+    // Remove empty state
+    document.getElementById('emptyState')?.remove();
+
+    // Add user bubble (skip for auto-analyse)
+    const isAuto = question.startsWith('Explain what');
+    if (!isAuto) {
+      addMsg('you', question);
+    }
+
+    // Add streaming AI bubble
+    const aiBubble = addMsg('ai', '');
+
+    let rawText = '';
+    let buffer  = '';
+
+    try {
+      // First turn: send raw image. Follow-ups: send stored summary, skip the image.
+      const isFirstTurn = !imageSummary;
+      const res = await fetch('/api/screen/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64:     isFirstTurn ? activeImage() : '',
+          image_summary: imageSummary || '',
+          question:      question,
+          history:       conversationHistory,
+        }),
+      });
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6);
+          if (payload === '[DONE]') break;
+          if (payload.startsWith('[STATUS]')) {
+            setStatus('busy', payload.slice(9));
+            continue;
+          }
+          if (payload.startsWith('[SUMMARY]')) {
+            // Store the model's first-turn description for the whole session
+            imageSummary = payload.slice(9).replace(/\\n/g, '\n');
+            continue;
+          }
+          if (payload.startsWith('[ERROR]')) {
+            aiBubble.innerHTML = formatMsg(payload.slice(8));
+            break;
+          }
+          rawText += payload.replace(/\\n/g, '\n');
+          aiBubble.innerHTML = formatMsg(rawText);
+          scrollBottom();
+        }
+      }
+
+      // Store in history for follow-ups
+      if (!isAuto) {
+        conversationHistory.push({ role: 'user',      content: question });
+      }
+      conversationHistory.push({ role: 'assistant', content: rawText });
+
+    } catch (err) {
+      aiBubble.innerHTML = formatMsg('Error reaching the model — is Ollama running?');
+    }
+
+    isBusy = false;
+    setStatus('ready', 'ready · ask a follow-up or retake');
+    document.getElementById('sendBtn').disabled    = false;
+    document.getElementById('analyzeBtn').disabled = false;
+    document.getElementById('questionInput').focus();
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function addMsg(role, text) {
+    const container = document.getElementById('responses');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg';
+    const label = document.createElement('div');
+    label.className = 'msg-label' + (role === 'ai' ? ' ai' : '');
+    label.textContent = role === 'ai' ? 'AI' : 'YOU';
+    const body = document.createElement('div');
+    body.className = 'msg-body ' + role;
+    body.innerHTML = formatMsg(text);
+    wrap.appendChild(label);
+    wrap.appendChild(body);
+    container.appendChild(wrap);
+    scrollBottom();
+    return body;
+  }
+
+  function formatMsg(text) {
+    text = text.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
+      '<pre><code>' + esc(code.trim()) + '</code></pre>'
+    );
+    text = text.replace(/`([^`]+)`/g, (_, c) => '<code>' + esc(c) + '</code>');
+    return text;
+  }
+
+  function esc(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function scrollBottom() {
+    const r = document.getElementById('responses');
+    r.scrollTop = r.scrollHeight;
+  }
+
+  function setStatus(type, text) {
+    const dot  = document.getElementById('statusDot');
+    const span = document.getElementById('statusText');
+    dot.className  = 'status-dot' + (type ? ' ' + type : '');
+    span.textContent = text;
+  }
+
+  function clearSession() {
+    conversationHistory = [];
+    croppedImageB64 = null;
+    imageSummary = null;
+    document.getElementById('responses').innerHTML =
+      '<div class="empty-state" id="emptyState"><div class="icon">💬</div><div>Take a screenshot, then ask a question</div></div>';
+    setStatus(null, 'session cleared');
+  }
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  document.getElementById('questionInput').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = this.scrollHeight + 'px';
+  });
+
+  document.getElementById('questionInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.altKey && e.key === 'v') {
+      e.preventDefault(); retakeScreenshot();
+    }
+  });
+</script>
+</body>
+</html>
