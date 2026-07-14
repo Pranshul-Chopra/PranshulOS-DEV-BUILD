@@ -29,7 +29,7 @@ def _take_screenshot_b64() -> str:
 # ── API ───────────────────────────────────────────────────────────────────────
 class PranshulAPI:
     def open_spotify(self):
-        shortcut = r"C:\Users\Pranshul Chopra\OneDrive\Desktop\Spotify.lnk"
+        shortcut = r""
         if os.path.exists(shortcut):
             os.startfile(shortcut)
             return "Opened Spotify!"
@@ -64,7 +64,7 @@ class PranshulAPI:
         return "Opening Roblox..."
 
     def open_steam(self):
-        for path in [r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Steam\Steam.lnk"]:
+        for path in [r""]:
             if os.path.exists(path):
                 os.startfile(path)
                 return "Launching Steam..."
@@ -80,10 +80,10 @@ class PranshulAPI:
         return "Opened YouTube!"
 
     def work(self):
-        spotify_shortcut = r"C:\Users\Pranshul Chopra\OneDrive\Desktop\Spotify.lnk"
+        spotify_shortcut = r""
         if os.path.exists(spotify_shortcut):
             os.startfile(spotify_shortcut)
-        vscode_shortcut = r"C:\Users\Pranshul Chopra\OneDrive\Desktop\Visual Studio Code.lnk"
+        vscode_shortcut = r""
         if os.path.exists(vscode_shortcut):
             os.startfile(vscode_shortcut)
         return "Opened Spotify + VS Code!"
@@ -104,13 +104,13 @@ class PranshulAPI:
         webbrowser.open("https://mujslcm.jaipur.manipal.edu")
         return "opened slcm"
     def open_outlook(self):
-        shortcut = r"C:\Users\Pranshul Chopra\OneDrive\Desktop\Outlook.lnk"
+        shortcut = r""
         if os.path.exists(shortcut):
             os.startfile(shortcut)
             return "Opened Outlook!"
         return "Outlook shortcut not found."
     def open_claude(self):
-        shortcut = r"C:\Users\Pranshul Chopra\OneDrive\Desktop\Claude.lnk"
+        shortcut = r""
         if os.path.exists(shortcut):
             os.startfile(shortcut)
             return "Opened THE SAVIOUR , THE MESSIAH CLAUDE"
@@ -120,17 +120,17 @@ class PranshulAPI:
         webbrowser.open("https://www.mujstella.in")
         return "Opened Mujstella"
     def open_brave(self):
-        shortcut = r"C:\Users\Pranshul Chopra\OneDrive\Desktop\Brave.lnk"
+        shortcut = r""
         if os.path.exists(shortcut):
             os.startfile(shortcut)
             return "Brave Opened!"
         return "Brave Aint Brave Enough for YOU"
     def start_warframe(self):
-        shortcut= r"C:\Users\Pranshul Chopra\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Steam\Warframe.url"
+        shortcut= r""
         if os.path.exists(shortcut):
             os.startfile(shortcut)
-            return "IK YOU LIKE PLAYING WISP"
-        return "DONT TELL ME YOU ONLY PLAY WISP FOR HER ASSETS"
+            return ""
+        return ""
     
     def test_notification(self):
         """Fires a test toast — call from sidebar to verify notifications work."""
