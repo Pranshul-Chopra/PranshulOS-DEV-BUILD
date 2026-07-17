@@ -10,7 +10,7 @@ pranshulos/
 ├── shell.py         ← CustomTkinter UI
 ├── server.py        ← boots FluidCB Flask server
 ├── requirements.txt
-└── fluidcb_v2/      ← your existing FluidCB project (untouched)
+└── fluidcb_v2/      ← your existing FluidCB project
 ```
 
 ## Setup
